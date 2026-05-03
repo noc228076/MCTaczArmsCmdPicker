@@ -1,127 +1,109 @@
-#获取游戏内得到[tacz]永恒枪械工坊：零的枪械的命令
-#give命令示例：/give @p tacz:modern_kinetic_gun{GunId:"lrl:m4a1_zero",GunFireMode:"AUTO",GunCurrentAmmoCount:30,AttachmentMUZZLE:{id:"tacz:attachment",Count:1b,tag:{AttachmentId:"tacz:muzzle_silencer_knight_qd"}}}
-#item命令示例：item replace entity @p container.1 with tacz:modern_kinetic_gun{GunId:"tacz:ak47",GunFireMode:"AUTO",GunCurrentAmmoCount:30}
+"""MC TACZ 枪械指令生成器主入口。"""
+
 from data.gun_id import original_gun_id
 from data.cmd_list import at_cmd_list
-from utils import get_valuable_num
+from utils import get_valid_int, print_menu
 
-head_command = ""
-at_command = ""
-gun_position = ""
-gun_class_command = ""
-gun_fire_mode = ""
-gun_current_ammo_count = ""
-gun_accessories = ""
+FIRE_MODES = ["AUTO", "SEMI", "BURST"]
+MAX_AMMO = 2147483647
 
-#获取命令头
-while True:
-    print("请选择命令模式：\n" \
-    "1.give（直接给予玩家）     2.item（装备到指定槽位）")
-    head_cmd = get_valuable_num("请输入您的选择：")
-    if head_cmd == 1:
-        head_command = "give"
-    elif head_cmd == 2:
-        head_command = "item replace entity"
-    elif head_cmd is None:
-        break
 
-    #获取命令作用对象
+def choose_head_command() -> int | None:
+    return print_menu(
+        "请选择命令模式：",
+        ["give（直接给予玩家）", "item（装备到指定槽位）"],
+    )
+
+
+def choose_target_selector() -> str | None:
+    choice = print_menu(
+        "请选择命令作用对象：",
+        ["@a(所有玩家)", "@p(最近的玩家)", "@s(指令执行者自身)", "@r(随机玩家)", "@e(所有实体)"],
+    )
+    if choice is None:
+        return None
+    return at_cmd_list[choice - 1]
+
+
+def choose_slot() -> int | None:
     while True:
-        print("""请选择命令作用对象：
-1.@a(所有玩家)   2.@p(最近的玩家)   3.@s(指令执行者自身)   4.@r(随机玩家)   5.@e(所有实体)""")
-        at_cmd = get_valuable_num("请输入您的选择")
-        if at_cmd is None:
-            break
-        elif at_cmd in range(1,6):
-            at_command = at_cmd_list[at_cmd-1]
-            break
-        else:
-            print("请输入区间为1~5的数字。")
-            continue
-    if at_cmd is None:
-        break
+        slot = get_valid_int("请输入武器放置的位置（1~9 为快捷栏，10~54 为背包）：")
+        if slot is None:
+            return None
+        if 1 <= slot <= 54:
+            return slot
+        print("请输入区间为 1~54 的数字。")
 
-    #item命令需获得武器放置位置
-    if head_cmd == 2:
-        while True:
-            print("请输入武器放置的位置，1~9为快捷栏，10~54为背包内。")
-            weapon_position = get_valuable_num("请输入放置的位置：")
-            if weapon_position is None:
-                break
-            elif 0 <= weapon_position <= 54:
-                gun_position = weapon_position
-                break
-            else:
-                 print("请输入区间为1~54的数字。")
-            continue
-        if weapon_position is None:
-            break
 
-    #获取武器
+def choose_weapon() -> str | None:
+    names = list(original_gun_id.keys())
     while True:
-        print("请选择您要获取的武器：")
-        weapon_list = ""
-        i = 1
-        for weapon in original_gun_id.keys():
-            if i % 10 == 0:
-                gun_list = f"{i}. {weapon}\n"
-            else:
-                gun_list = f"{i}. {weapon}   "
-            weapon_list += gun_list
-            i += 1
-        print(weapon_list)
-        gun_class_cmd = get_valuable_num("请输入您的选择：")
-        if gun_class_cmd is None:
-            break
-        elif gun_class_cmd in range(1,len(original_gun_id) + 1):
-            gun_class_command = list(original_gun_id.values())[gun_class_cmd - 1]
-            break
-        else:
-            print("请输入正确的数字。")
-            continue
-    if gun_class_cmd is None:
-        break
+        options = [f"{name}（{original_gun_id[name]}）" for name in names]
+        choice = print_menu("请选择您要获取的武器：", options, columns=2)
+        if choice is None:
+            return None
+        if 1 <= choice <= len(names):
+            return original_gun_id[names[choice - 1]]
+        print("请输入正确的数字。")
 
-    #获取开火模式
-    gun_fire_mode_list = ['AUTO','SEMI','BURST']
+
+def choose_fire_mode() -> str | None:
+    choice = print_menu("请选择开火模式：", ["全自动", "单发", "二连发"])
+    if choice is None:
+        return None
+    return FIRE_MODES[choice - 1]
+
+
+def choose_ammo_count() -> int | None:
     while True:
-        print("""请选择开火模式：
-1.全自动   2.单发   3.二连发""")
-        gun_fire_mode_cmd = get_valuable_num("请输入您的选择：")
-        if gun_fire_mode_cmd is None:
-            break
-        elif gun_fire_mode_cmd in range(1,4):
-            gun_fire_mode = gun_fire_mode_list[gun_fire_mode_cmd - 1]
-            break
-        else:
-            print("请输入正确的数字。")
-            continue
-    if gun_fire_mode_cmd is None:
-        break
+        ammo = get_valid_int(f"请输入初始备弹数（0~{MAX_AMMO}）：")
+        if ammo is None:
+            return None
+        if 0 <= ammo <= MAX_AMMO:
+            return ammo
+        print("请输入正确的数字。")
 
-    #获取初始备弹数
+
+def build_command(mode: int, selector: str, slot: int | None, gun_id: str, fire_mode: str, ammo: int) -> str:
+    base_nbt = (
+        f'tacz:modern_kinetic_gun{{GunId:"{gun_id}",'
+        f'GunFireMode:"{fire_mode}",GunCurrentAmmoCount:{ammo}}}'
+    )
+    if mode == 1:
+        return f"give {selector} {base_nbt}"
+    return f"item replace entity {selector} container.{slot} with {base_nbt}"
+
+
+def main() -> None:
     while True:
-        print("请选择武器初始备弹数（可设置的子弹数量最大值为2147483647）:")
-        ammo_count = get_valuable_num("请输入初始备弹数：")
-        if ammo_count is None:
+        mode = choose_head_command()
+        if mode is None:
             break
-        elif 0 <= ammo_count <= 2147483647:
-            gun_current_ammo_count = ammo_count
+
+        selector = choose_target_selector()
+        if selector is None:
             break
-        else:
-            print("请输入正确的数字。")
-            continue
-    if ammo_count is None:
-        break
 
-    #获取配件信息
+        slot = choose_slot() if mode == 2 else None
+        if mode == 2 and slot is None:
+            break
+
+        gun_id = choose_weapon()
+        if gun_id is None:
+            break
+
+        fire_mode = choose_fire_mode()
+        if fire_mode is None:
+            break
+
+        ammo = choose_ammo_count()
+        if ammo is None:
+            break
+
+        print("\n" + "|" * 88)
+        print(build_command(mode, selector, slot, gun_id, fire_mode, ammo))
+        print("|" * 88 + "\n")
 
 
-    #组装NBT命令
-    if head_cmd == 1:   #获取give命令
-        nbt_cmd = f'{head_command} {at_command} tacz:modern_kinetic_gun{{GunId:"{gun_class_command}",GunFireMode:"{gun_fire_mode}",GunCurrentAmmoCount:{gun_current_ammo_count}}}'
-    elif head_cmd == 2:   #获取item命令
-        nbt_cmd = f'{head_command} {at_command} container.{gun_position} with tacz:modern_kinetic_gun{{GunId:"{gun_class_command}",GunFireMode:"{gun_fire_mode}",GunCurrentAmmoCount:{gun_current_ammo_count}}}'
-    print("||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n")
-    print(nbt_cmd,"\n")
-    print("||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n")
+if __name__ == "__main__":
+    main()
